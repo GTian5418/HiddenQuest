@@ -193,6 +193,7 @@ class Main : XposedModule() {
     private fun queryProvider(): Set<String>? {
         return try {
             val ctx = currentContext() ?: return null
+            if (ctx.packageName != MODULE_PKG) return null
             val cursor = ctx.contentResolver.query(PrefsProvider.URI, null, null, null, null)
                 ?: return null
             cursor.use {

@@ -9,8 +9,8 @@ import android.database.MatrixCursor
 import android.net.Uri
 
 /**
- * 暴露模块配置给 hook 侧（launcher/system_server 进程）跨进程读取。
- * remote prefs 在部分 LSPosed 实现上不可靠，ContentProvider 是最稳定的跨进程方案。
+ * 暴露模块配置给模块自身读取。
+ * Hook 进程不再依赖 Provider 同步，避免在高频路径出现跨进程读导致的阻塞风险。
  *
  * query content://com.top.hiderecent.prefs/hide → 返回单行单列 cursor，值为逗号分隔的包名
  */
