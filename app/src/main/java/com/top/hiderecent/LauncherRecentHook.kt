@@ -12,6 +12,8 @@ import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 桌面进程 hook（ColorOS OplusLauncher，进程名 com.android.launcher）。
@@ -23,6 +25,13 @@ import java.util.concurrent.Executors
  *
  * 旧 AOSP 路径 RecentTasks.isVisibleRecentTask 在 ColorOS 上是死代码（system hook 装上但从不触发），
  * 真正过滤在 launcher 侧的 OplusRecentTasksFilter。
+ *
+ * 快照刷新时机（三层保障，缺一不可）：
+ *   1) OplusRecentTasksListImpl.loadTasksInBackground 前置同步刷新——每次打开最近任务的必经之路，
+ *      在后台线程上先刷新快照再放行，保证紧随其后的 filterTask 拿到最新名单；
+ *   2) 模块配置变更广播（receiver 在 loadTasks hook / RecentsActivity.onCreate 补注册）；
+ *   3) 15s 周期兜底——开机初期 remote prefs / provider 尚未就绪、广播接收器又常因
+ *      Application 未就绪而注册失败，没有定时器则 launcher 只有 init 那一次刷新机会。
  */
 object LauncherRecentHook {
 
@@ -30,6 +39,13 @@ object LauncherRecentHook {
     private val hiddenSnapshot = HiddenPackagesSnapshot()
     private val refreshExecutor = Executors.newSingleThreadExecutor { r ->
         Thread(r, "HideRecentTiles-launch-refresh").apply { isDaemon = true }
+    }
+
+    /** 周期兜底刷新参数与执行器（与 system 侧同款，single scheduled executor） */
+    private const val SNAPSHOT_REFRESH_SEC = 15L
+    private val periodicStarted = AtomicBoolean(false)
+    private val periodicExecutor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "HideRecentTiles-launch-periodic").apply { isDaemon = true }
     }
 
     /** 诊断计数器：限制前 N 次调用打日志，避免刷屏 */
@@ -45,9 +61,19 @@ object LauncherRecentHook {
         // 诊断 hook：RecentsActivity.onCreate（确认 launcher 注入成功，不影响显示）
         count += hookDiag(module, loader)
 
+        // 关键 hook：最近任务加载入口。每次打开最近任务先同步刷新快照再放行，
+        // 保证紧随其后的 filterTask 一定拿到最新名单（消除首次打开读到空快照的时序问题）
+        count += hookRecentsLoad(module, loader)
+
         // 注册配置变更广播接收器：模块进程每次保存配置都会广播，桌面进程即时更新缓存，
         // 不再依赖轮询 / 不再依赖模块进程长期存活
         registerPrefsReceiver(module)
+
+        // 周期兜底刷新：开机初期各通道可能尚未就绪（实测 init 刷新会失败），
+        // 广播接收器又常因 Application 未就绪注册不上——没有定时器，
+        // launcher 进程从启动到死掉只有 init 那一次刷新机会，配置就绪晚了就永远读不到。
+        startPeriodicRefresh(module)
+
         refreshSnapshotAsync(module, "init")
         module.log(Log.INFO, TAG, "launcher hooks=$count")
     }
@@ -71,7 +97,9 @@ object LauncherRecentHook {
             override fun onReceive(c: Context?, i: Intent?) {
                 val raw = i?.getStringExtra(Main.EXTRA_HIDE)
                 if (raw != null) {
-                    hiddenSnapshot.replace(parse(raw))
+                    // 走 Main.onPrefsPushed：更新内存缓存 + 落盘磁盘缓存（模块进程死后兜底）
+                    module.onPrefsPushed(raw)
+                    hiddenSnapshot.replace(module.hiddenPackages)
                 } else {
                     refreshSnapshotAsync(module, "broadcast-no-extra")
                 }
@@ -213,6 +241,70 @@ object LauncherRecentHook {
                 module.log(Log.WARN, TAG, "snapshot refresh failed($reason): ${it.message}")
             }
         }
+    }
+
+    /** 周期兜底刷新：与 system 侧同款（首刷延迟一个周期），覆盖通道晚就绪 / 广播注册失败的窗口 */
+    private fun startPeriodicRefresh(module: Main) {
+        if (!periodicStarted.compareAndSet(false, true)) return
+        periodicExecutor.scheduleWithFixedDelay({
+            runCatching {
+                hiddenSnapshot.replace(module.hiddenPackages)
+            }.onFailure {
+                module.log(Log.WARN, TAG, "periodic refresh failed: ${it.message}")
+            }
+        }, SNAPSHOT_REFRESH_SEC, SNAPSHOT_REFRESH_SEC, TimeUnit.SECONDS)
+    }
+
+    /**
+     * hook 最近任务加载入口 OplusRecentTasksListImpl.loadTasksInBackground()：
+     *   if (getFilter().filterTask(map)) { map = null; }
+     * 每次打开最近任务都会先进这里。放行前**同步**刷新快照——该方法在后台线程执行，
+     * 读一次配置（TTL 1.5s 内复用缓存；provider 首查会冷启动模块进程，仅一次、数百 ms）
+     * 不会卡 UI，却能保证紧随其后的 filterTask 一定拿到最新名单。
+     * 同时是广播接收器补注册的可靠时机（此时 Application 一定已就绪）。
+     */
+    private fun hookRecentsLoad(module: Main, cl: ClassLoader): Int {
+        val cls = try {
+            cl.loadClass("com.android.quickstep.OplusRecentTasksListImpl")
+        } catch (_: Throwable) {
+            module.log(Log.WARN, TAG, "OplusRecentTasksListImpl not found (non-ColorOS?)")
+            return 0
+        }
+        val methods = cls.declaredMethods.filter { it.name == "loadTasksInBackground" }
+        if (methods.isEmpty()) {
+            module.log(Log.WARN, TAG, "loadTasksInBackground not found")
+            return 0
+        }
+        var n = 0
+        for (m in methods) {
+            m.isAccessible = true
+            module.hook(m).setId("recentsLoad/${m.parameterTypes.size}").setExceptionMode(
+                XposedInterface.ExceptionMode.PROTECTIVE
+            ).intercept { chain ->
+                HookDecision.evaluateOrProceed(
+                    proceed = { chain.proceed() },
+                    onError = { module.log(Log.WARN, TAG, "recents-load fallback: ${it.message}") }
+                ) {
+                    // Application 此时必已就绪，补注册广播接收器（幂等）
+                    registerPrefsReceiver(module)
+                    if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                        // 意外情况：在主线程上调用则退化为异步，绝不阻塞 UI
+                        refreshSnapshotAsync(module, "recents-load")
+                    } else {
+                        runCatching {
+                            hiddenSnapshot.replace(module.hiddenPackages)
+                            module.log(Log.INFO, TAG, "recents-load refresh: ${hiddenSnapshot.get().size}")
+                        }.onFailure {
+                            module.log(Log.WARN, TAG, "recents-load refresh failed: ${it.message}")
+                        }
+                    }
+                    null // 不干预原方法，仅前置刷新
+                }
+            }
+            n++
+        }
+        module.log(Log.INFO, TAG, "hooked OplusRecentTasksListImpl.loadTasksInBackground x$n")
+        return n
     }
 
     private fun parse(raw: String): Set<String> =

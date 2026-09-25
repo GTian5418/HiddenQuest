@@ -72,7 +72,9 @@ object SystemRecentHook {
             }.onFailure {
                 module.log(Log.WARN, TAG, "snapshot refresh failed: ${it.message}")
             }
-        }, 0L, SNAPSHOT_REFRESH_SEC, TimeUnit.SECONDS)
+        // ponytail: 首次延迟一个周期,避免开机早期从 system_server 发 provider query
+        // 去冷启动模块进程(可能阻塞 system_server)。升级路径:改为监听广播、彻底去掉轮询。
+        }, SNAPSHOT_REFRESH_SEC, SNAPSHOT_REFRESH_SEC, TimeUnit.SECONDS)
     }
 
     /** 从方法入参里的 Task 对象取基础 Intent 的包名 */

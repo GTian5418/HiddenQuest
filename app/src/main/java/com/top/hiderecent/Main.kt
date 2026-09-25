@@ -189,11 +189,10 @@ class Main : XposedModule() {
         return cached ?: emptySet()
     }
 
-    /** 通道 1：ContentProvider（依赖模块进程存活） */
+    /** 通道 1：ContentProvider（跨进程直查模块 provider，模块进程被拉起服务查询） */
     private fun queryProvider(): Set<String>? {
         return try {
             val ctx = currentContext() ?: return null
-            if (ctx.packageName != MODULE_PKG) return null
             val cursor = ctx.contentResolver.query(PrefsProvider.URI, null, null, null, null)
                 ?: return null
             cursor.use {

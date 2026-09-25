@@ -30,7 +30,6 @@
         <provider
             android:name=".PrefsProvider"
             android:authorities="com.top.hiderecent.prefs"
-            android:exported="false"
-            android:readPermission="com.top.hiderecent.permission.PREFS" />
+            android:exported="true" />
     </application>
 </manifest>
