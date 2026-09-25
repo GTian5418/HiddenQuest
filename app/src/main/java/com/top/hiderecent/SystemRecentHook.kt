@@ -3,6 +3,9 @@ package com.top.hiderecent
 import android.util.Log
 import io.github.libxposed.api.XposedInterface
 import java.lang.reflect.Method
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * 注入 system_server（android 作用域）。
@@ -12,6 +15,12 @@ import java.lang.reflect.Method
 object SystemRecentHook {
 
     private const val TAG = "${Main.TAG}/sys"
+    private const val SNAPSHOT_REFRESH_SEC = 15L
+    private val hiddenSnapshot = HiddenPackagesSnapshot()
+    private val refreshStarted = AtomicBoolean(false)
+    private val refreshExecutor = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "HideRecentTiles-sys-refresh").apply { isDaemon = true }
+    }
 
     fun hook(module: Main, cl: ClassLoader) {
         // 目标类在部分 ROM 上是 RecentTasks 内部类，回退 Task 基类
@@ -28,6 +37,7 @@ object SystemRecentHook {
         count += hookBool(module, recentTasks, "isVisibleRecentTask", 1)
         // 双参重载（Vivo / 部分 OEM 直接调用）
         count += hookBool(module, recentTasks, "isVisibleRecentTask", 2)
+        startSnapshotRefresh(module)
         module.log(Log.INFO, TAG, "isVisibleRecentTask hooks = $count")
     }
 
@@ -37,17 +47,32 @@ object SystemRecentHook {
         module.hook(method).setId("$name/$argCount").setExceptionMode(
             XposedInterface.ExceptionMode.PROTECTIVE
         ).intercept { chain ->
-            val hidden = module.hiddenPackages
-            if (hidden.isNotEmpty()) {
-                val pkg = packageNameOf(chain.args)
-                if (pkg != null && pkg in hidden) {
-                    module.log(Log.INFO, TAG, "hide task of $pkg")
-                    return@intercept false
+            HookDecision.evaluateOrProceed(
+                proceed = { chain.proceed() },
+                onError = { module.log(Log.WARN, TAG, "hook fallback: ${it.message}") }
+            ) {
+                val hidden = hiddenSnapshot.get()
+                if (hidden.isNotEmpty()) {
+                    val pkg = packageNameOf(chain.args)
+                    if (pkg != null && pkg in hidden) {
+                        return@evaluateOrProceed false
+                    }
                 }
+                null
             }
-            chain.proceed()
         }
         return 1
+    }
+
+    private fun startSnapshotRefresh(module: Main) {
+        if (!refreshStarted.compareAndSet(false, true)) return
+        refreshExecutor.scheduleWithFixedDelay({
+            runCatching {
+                hiddenSnapshot.replace(module.hiddenPackages)
+            }.onFailure {
+                module.log(Log.WARN, TAG, "snapshot refresh failed: ${it.message}")
+            }
+        }, 0L, SNAPSHOT_REFRESH_SEC, TimeUnit.SECONDS)
     }
 
     /** 从方法入参里的 Task 对象取基础 Intent 的包名 */

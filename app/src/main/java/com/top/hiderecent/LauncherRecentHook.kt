@@ -4,12 +4,14 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Bundle
 import android.util.Log
 import androidx.core.content.ContextCompat
 import io.github.libxposed.api.XposedInterface
 import io.github.libxposed.api.XposedModuleInterface.PackageLoadedParam
 import java.lang.reflect.Field
 import java.lang.reflect.Method
+import java.util.concurrent.Executors
 
 /**
  * 桌面进程 hook（ColorOS OplusLauncher，进程名 com.android.launcher）。
@@ -25,6 +27,10 @@ import java.lang.reflect.Method
 object LauncherRecentHook {
 
     private const val TAG = "${Main.TAG}/launch"
+    private val hiddenSnapshot = HiddenPackagesSnapshot()
+    private val refreshExecutor = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "HideRecentTiles-launch-refresh").apply { isDaemon = true }
+    }
 
     /** 诊断计数器：限制前 N 次调用打日志，避免刷屏 */
     private var diagCount = 0
@@ -42,10 +48,8 @@ object LauncherRecentHook {
         // 注册配置变更广播接收器：模块进程每次保存配置都会广播，桌面进程即时更新缓存，
         // 不再依赖轮询 / 不再依赖模块进程长期存活
         registerPrefsReceiver(module)
-
-        // 立即读一次配置，确认跨进程读取可用
-        val hidden = module.hiddenPackages
-        module.log(Log.INFO, TAG, "launcher hooks=$count, hidden(${hidden.size})=${hidden.take(5)}")
+        refreshSnapshotAsync(module, "init")
+        module.log(Log.INFO, TAG, "launcher hooks=$count")
     }
 
     /** 广播接收器强引用，避免被 GC 回收导致收不到广播 */
@@ -67,20 +71,9 @@ object LauncherRecentHook {
             override fun onReceive(c: Context?, i: Intent?) {
                 val raw = i?.getStringExtra(Main.EXTRA_HIDE)
                 if (raw != null) {
-                    // 广播里带着完整名单，直接落盘 + 更新内存缓存，零 IPC：
-                    // 模块进程随后被最近任务划掉也不影响，这才是「杀进程后仍生效」的关键。
-                    module.onPrefsPushed(raw)
-                    module.log(
-                        Log.INFO, TAG,
-                        "prefs pushed -> hidden(${module.hiddenPackages.size}) raw=$raw"
-                    )
+                    hiddenSnapshot.replace(parse(raw))
                 } else {
-                    // 老版本发送方没有带 extra，退化为强制重读一次
-                    module.invalidateCache(forceReload = true)
-                    module.log(
-                        Log.INFO, TAG,
-                        "prefs changed(no extra), reload -> hidden(${module.hiddenPackages.size})"
-                    )
+                    refreshSnapshotAsync(module, "broadcast-no-extra")
                 }
             }
         }
@@ -149,22 +142,26 @@ object LauncherRecentHook {
         module.hook(filterTask).setId("filterTask").setExceptionMode(
             XposedInterface.ExceptionMode.PROTECTIVE
         ).intercept { chain ->
-            val hidden = module.hiddenPackages
-            val groupTask = chain.args.firstOrNull()
-            val pkg = groupTask?.let { packageNameOf(it, task1Field, getPackageName) }
+            HookDecision.evaluateOrProceed(
+                proceed = { chain.proceed() },
+                onError = { module.log(Log.WARN, TAG, "hook fallback: ${it.message}") }
+            ) {
+                val hidden = hiddenSnapshot.get()
+                val groupTask = chain.args.firstOrNull()
+                val pkg = groupTask?.let { packageNameOf(it, task1Field, getPackageName) }
 
-            // 诊断：前 20 次调用打印状态，确认方法是否被调用 + 配置是否读到
-            val n = diagCount
-            if (n < 20) {
-                diagCount = n + 1
-                module.log(Log.INFO, TAG, "filterTask#$n pkg=$pkg hidden(${hidden.size})=${hidden.take(3)}")
-            }
+                // 诊断：前 5 次调用打印状态，避免刷屏
+                val n = diagCount
+                if (n < 5) {
+                    diagCount = n + 1
+                    module.log(Log.INFO, TAG, "filterTask#$n pkg=$pkg hidden=${hidden.size}")
+                }
 
-            if (pkg != null && pkg in hidden) {
-                module.log(Log.INFO, TAG, "hide $pkg")
-                return@intercept true   // true = 隐藏
+                if (pkg != null && pkg in hidden) {
+                    return@evaluateOrProceed true   // true = 隐藏
+                }
+                null
             }
-            chain.proceed()
         }
         module.log(Log.INFO, TAG, "hooked OplusRecentTasksFilter.filterTask")
         return 1
@@ -185,18 +182,39 @@ object LauncherRecentHook {
         val cls = try {
             cl.loadClass("com.android.quickstep.RecentsActivity")
         } catch (_: Throwable) { return 0 }
-        val onCreate = cls.declaredMethods.firstOrNull { it.name == "onCreate" } ?: return 0
-        onCreate.isAccessible = true
+        val onCreate = try {
+            cls.getDeclaredMethod("onCreate", Bundle::class.java).apply { isAccessible = true }
+        } catch (_: Throwable) {
+            return 0
+        }
         module.hook(onCreate).setId("diag/RecentsActivity/onCreate").setExceptionMode(
             XposedInterface.ExceptionMode.PROTECTIVE
         ).intercept { chain ->
-            // 这里 Application 一定已创建，是补注册广播接收器的可靠时机：
-            // onPackageLoaded 阶段 ActivityThread.currentApplication() 常常还是 null，
-            // 那样接收器就永远注册不上，推送通道形同虚设。
-            registerPrefsReceiver(module)
-            module.log(Log.INFO, TAG, "RecentsActivity.onCreate, hidden=${module.hiddenPackages.size}")
-            chain.proceed()
+            HookDecision.evaluateOrProceed(
+                proceed = { chain.proceed() },
+                onError = { module.log(Log.WARN, TAG, "diag fallback: ${it.message}") }
+            ) {
+                // 这里 Application 一定已创建，是补注册广播接收器的可靠时机：
+                // onPackageLoaded 阶段 ActivityThread.currentApplication() 常常还是 null，
+                // 那样接收器就永远注册不上，推送通道形同虚设。
+                registerPrefsReceiver(module)
+                refreshSnapshotAsync(module, "recents-onCreate")
+                null
+            }
         }
         return 1
     }
+
+    private fun refreshSnapshotAsync(module: Main, reason: String) {
+        refreshExecutor.execute {
+            runCatching {
+                hiddenSnapshot.replace(module.hiddenPackages)
+            }.onFailure {
+                module.log(Log.WARN, TAG, "snapshot refresh failed($reason): ${it.message}")
+            }
+        }
+    }
+
+    private fun parse(raw: String): Set<String> =
+        if (raw.isEmpty()) emptySet() else raw.split(',').filter { it.isNotEmpty() }.toSet()
 }

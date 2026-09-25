@@ -70,4 +70,5 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     // RecyclerView 用于应用列表
     implementation("androidx.recyclerview:recyclerview:1.3.2")
+    testImplementation("junit:junit:4.13.2")
 }
