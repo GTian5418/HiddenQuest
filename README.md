@@ -33,6 +33,40 @@ D:\DevTools\Gradle\gradle-8.9\bin\gradle.bat assembleRelease
 
 产出 `app/build/outputs/apk/release/app-release.apk`。
 
+## GitHub Actions CI（Debug）
+
+仓库已提供 `Android CI` workflow（`.github/workflows/android.yml`），会在以下场景自动运行：
+
+- push 到 `main`
+- pull request
+- 手动触发（`workflow_dispatch`）
+
+CI 使用 Ubuntu runner，并固定：
+
+- JDK 17
+- Android SDK Platform 35
+- Android Build Tools 35.0.0
+- Gradle 8.9（通过 `gradle/actions/setup-gradle`，不依赖本地路径）
+
+执行命令：
+
+```bash
+gradle :app:testDebugUnitTest
+gradle :app:assembleDebug -x testDebugUnitTest
+```
+
+其中 `:app:testDebugUnitTest` 单独执行，`assembleDebug` 阶段跳过重复单测任务，只构建 Debug APK。
+
+产物会作为 artifact 上传，路径覆盖：
+
+```text
+app/build/outputs/apk/debug/*.apk
+```
+
+下载方式：进入对应 workflow run 页面，在 `Artifacts` 区域下载 `app-debug-apk`。
+
+> ⚠️ CI 只能验证“能否编译 + JVM 单元测试”；不能替代 LSPosed 注入、`system_server` hook、ColorOS 最近任务等真机行为验证。
+
 ## 安装与启用
 1. 安装 APK。
 2. LSPosed 管理器 → 启用模块。
