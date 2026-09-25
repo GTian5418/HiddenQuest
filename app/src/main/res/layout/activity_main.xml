@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  顶部结构（与 PackageViewer 视觉一致）：
+    statusBarSpacer  高度 0dp，运行时由 MainActivity 按真实状态栏高度撑开，背景 = colorPrimaryDark 深紫
+    toolbar          显式 Toolbar，背景 = colorPrimary 亮紫，标题白色
+  RecyclerView + 底部状态文字在下面。
+
+  这样写的好处：不管系统是否强制 edge-to-edge，状态栏和标题栏都各自占位，
+  不会出现「状态栏紫了、标题栏被盖住不见了」。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/bg_page"
+    android:orientation="vertical">
+
+    <View
+        android:id="@+id/statusBarSpacer"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="@color/purple_700" />
+
+    <androidx.appcompat.widget.Toolbar
+        android:id="@+id/toolbar"
+        android:layout_width="match_parent"
+        android:layout_height="?attr/actionBarSize"
+        android:background="@color/purple_500"
+        android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
+        app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
+        app:title="@string/app_name"
+        app:titleTextColor="@color/white" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/appList"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:scrollbars="vertical" />
+
+    <TextView
+        android:id="@+id/loadingText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@color/bg_bottom_bar"
+        android:gravity="center"
+        android:minHeight="36dp"
+        android:textColor="@color/white"
+        android:textSize="13sp"
+        android:text="@string/loading" />
+</LinearLayout>

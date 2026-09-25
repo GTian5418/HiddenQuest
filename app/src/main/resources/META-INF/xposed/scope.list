@@ -1,0 +1,7 @@
+# 系统框架（注入 system_server，隐藏最近任务的 hook 在这里）
+android
+system
+# ColorOS 桌面 / Quickstep（注入 launcher 进程，LockSettingActivity 等 hook）
+com.oplus.quickstep
+com.android.launcher
+com.oplus.launcher

@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 与 PackageViewer 的 menu_main 同构：搜索框 + 分组标题 + 可勾选分组 -->
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/app_bar_search"
+        android:icon="@drawable/ic_search_black_24dp"
+        android:title="@string/search"
+        app:actionViewClass="androidx.appcompat.widget.SearchView"
+        app:showAsAction="ifRoom|collapseActionView" />
+
+    <item
+        android:id="@+id/menu_sort_title"
+        android:title="@string/orderBy"
+        app:showAsAction="never" />
+
+    <group
+        android:id="@+id/menu_group_sort"
+        android:checkableBehavior="single">
+
+        <item
+            android:id="@+id/order_by_name"
+            android:checked="true"
+            android:title="@string/order_by_name"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/order_by_time"
+            android:title="@string/order_by_time"
+            app:showAsAction="never" />
+    </group>
+
+    <item
+        android:id="@+id/menu_filter_title"
+        android:title="@string/filter"
+        app:showAsAction="never" />
+
+    <group
+        android:id="@+id/menu_group_filter"
+        android:checkableBehavior="all">
+
+        <item
+            android:id="@+id/show_system_app"
+            android:checkable="true"
+            android:checked="true"
+            android:title="@string/show_system_app"
+            app:showAsAction="never" />
+
+        <item
+            android:id="@+id/show_user_app"
+            android:checkable="true"
+            android:checked="true"
+            android:title="@string/show_user_app"
+            app:showAsAction="never" />
+    </group>
+
+    <group
+        android:id="@+id/menu_group_self"
+        android:checkableBehavior="all">
+
+        <item
+            android:id="@+id/hide_self"
+            android:checkable="true"
+            android:title="@string/hide_self"
+            app:showAsAction="never" />
+    </group>
+
+    <item
+        android:id="@+id/about"
+        android:title="@string/about"
+        app:showAsAction="never" />
+</menu>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">隐藏任务</string>
+    <string name="desc">自定义最近任务应用显示:勾选后该应用不出现在最近任务列表</string>
+
+    <string name="search">搜索</string>
+    <string name="orderBy">排序</string>
+    <string name="order_by_name">按名称</string>
+    <string name="order_by_time">按安装时间</string>
+    <string name="filter">筛选</string>
+    <string name="show_system_app">显示系统应用</string>
+    <string name="show_user_app">显示用户应用</string>
+    <string name="loading">正在加载应用列表…</string>
+
+    <string name="hide_self">隐藏自身</string>
+    <string name="about">关于</string>
+    <string name="open_link_failed">未找到可打开链接的应用</string>
+</resources>
