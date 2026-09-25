@@ -68,8 +68,30 @@ jobs:
           # 不回显密码
           sed -e 's/\(storePassword=\).*/\1***/' -e 's/\(keyPassword=\).*/\1***/' keystore.properties
 
-      - name: Build signed release APK
+      - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
+
+      - name: Two-step sign (jarsigner v1 + apksigner v2/v3)
+        env:
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+        run: |
+          APK=app/build/outputs/apk/release/app-release.apk
+          KS=keystore/hiderecent-release.jks
+          # Step 1: jarsigner writes v1 (repacks; drops any prior v3 from gradle — apksigner re-adds it)
+          $JAVA_HOME/bin/jarsigner -keystore "$KS" \
+            -storepass "$RELEASE_STORE_PASSWORD" \
+            -keypass "$RELEASE_KEY_PASSWORD" \
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            "$APK" "$RELEASE_KEY_ALIAS"
+          # Step 2: apksigner appends v2 + v3 (preserves v1 in META-INF/.SF+.RSA)
+          $ANDROID_HOME/build-tools/35.0.0/apksigner sign \
+            --ks "$KS" --ks-key-alias "$RELEASE_KEY_ALIAS" \
+            --ks-pass "pass:$RELEASE_STORE_PASSWORD" \
+            --key-pass "pass:$RELEASE_KEY_PASSWORD" \
+            --v2-signing-enabled true --v3-signing-enabled true \
+            "$APK"
 
       - name: Verify signing
         run: |
