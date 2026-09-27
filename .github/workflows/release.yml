@@ -117,6 +117,8 @@ jobs:
           GH_TOKEN: ${{ secrets.XPOSED_REPO_TOKEN }}
         run: |
           REPO=Xposed-Modules-Repo/top.gtian.hiderecent
+          # Remove extraheader injected by actions/checkout so our PAT in URL is used, not GITHUB_TOKEN
+          git config --unset-all http.https://github.com/.extraheader || true
           git remote add xposed "https://x-access-token:${GH_TOKEN}@github.com/${REPO}.git"
           git push xposed HEAD:main --force
 
@@ -129,6 +131,7 @@ jobs:
           REPO=Xposed-Modules-Repo/top.gtian.hiderecent
           # Delete existing release+tag to ensure clean state with correct commit
           gh release delete "$TAG" --repo "$REPO" --yes 2>/dev/null || true
+          git config --unset-all http.https://github.com/.extraheader || true
           git push --delete xposed "$TAG" 2>/dev/null || true
           # Create fresh release (tag points to LSPosed repo main HEAD, just synced)
           gh release create "$TAG" \
