@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse

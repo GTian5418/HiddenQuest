@@ -1,4 +1,4 @@
-package com.top.hiderecent.ui
+package top.gtian.hiderecent.ui
 
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
@@ -9,7 +9,7 @@ import android.widget.CheckBox
 import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
-import com.top.hiderecent.R
+import top.gtian.hiderecent.R
 import java.util.concurrent.Executors
 
 /**

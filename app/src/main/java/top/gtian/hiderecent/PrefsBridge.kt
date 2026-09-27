@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import android.content.Context
 import android.content.Intent
@@ -11,9 +11,9 @@ import android.util.Log
  */
 object PrefsBridge {
     const val TAG = "HideRecentTiles"
-    const val MODULE_PKG = "com.top.hiderecent"
+    const val MODULE_PKG = "top.gtian.hiderecent"
     const val PREFS_NAME = "hide_recent"
-    const val ACTION_PREFS_CHANGED = "com.top.hiderecent.PREFS_CHANGED"
+    const val ACTION_PREFS_CHANGED = "top.gtian.hiderecent.PREFS_CHANGED"
     const val EXTRA_HIDE = "hide_list"
 
     fun notifyPrefsChanged(ctx: Context, hidden: Set<String>) {

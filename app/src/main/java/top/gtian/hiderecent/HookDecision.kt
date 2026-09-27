@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 internal object HookDecision {
     inline fun <T> evaluateOrProceed(

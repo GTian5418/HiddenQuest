@@ -14,7 +14,7 @@ val keystoreProps = Properties().apply {
 }
 
 android {
-    namespace = "com.top.hiderecent"
+    namespace = "top.gtian.hiderecent"
     compileSdk = 35
 
     signingConfigs {
@@ -32,7 +32,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.top.hiderecent"
+        applicationId = "top.gtian.hiderecent"
         minSdk = 29
         // 必须是 34：targetSdk 35 会在 Android 15 上强制 edge-to-edge，
         // 导致 android:statusBarColor 失效、状态栏变透明、ActionBar 被顶出屏幕。

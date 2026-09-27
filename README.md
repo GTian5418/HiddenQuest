@@ -9,7 +9,7 @@
 ## 结构
 ```
 app/
-├─ src/main/java/com/top/hiderecent/
+├─ src/main/java/top/gtian/hiderecent/
 │  ├─ Main.kt                # 模块入口（XposedModule），分发 system / launcher 两条 hook；UI 配置读取与缓存
 │  ├─ SystemRecentHook.kt    # system_server：hook RecentTasks.isVisibleRecentTask
 │  ├─ LauncherRecentHook.kt  # 桌面进程：hook OplusRecentTasksFilter.filterTask（ColorOS 真正生效的过滤点）
@@ -95,7 +95,7 @@ force-stop），provider 查不到，hook 侧就把「读不到」错当成了�
 
 | 级别 | 通道 | 依赖模块进程？ | 说明 |
 |---|---|---|---|
-| 1 | ContentProvider（`com.top.hiderecent.prefs`） | 是 | 仅模块内部；hook 进程不再依赖 |
+| 1 | ContentProvider（`top.gtian.hiderecent.prefs`） | 是 | 仅模块内部；hook 进程不再依赖 |
 | 2 | libxposed remote preferences | 否 | 由 LSPosed 框架服务提供，不依赖模块进程 |
 | 3 | 直读模块 data 目录的 `shared_prefs/*.xml` | 否 | 跨 UID 通常无权限，仅作兜底 |
 | 4 | 本进程落盘缓存（`files/hidden_cache.txt`） | 否 | 上面全部无应答时使用（典型场景：模块进程被划掉） |
@@ -104,7 +104,7 @@ force-stop），provider 查不到，hook 侧就把「读不到」错当成了�
 
 - **失败绝不覆盖缓存。** 只有某个通道*成功应答*才会被采信（包括合法的空名单——用户真的全部取消勾选）。
   全部失败时沿用上一次的名单，而不是退化成空集。
-- **写入即推送。** 模块 UI 每次改动都会广播 `com.top.hiderecent.PREFS_CHANGED`，
+- **写入即推送。** 模块 UI 每次改动都会广播 `top.gtian.hiderecent.PREFS_CHANGED`，
   extra `hide_list` 带完整名单。桌面进程里的动态接收器收到后原子替换内存快照，`filterTask` 热路径不再做同步 IPC/文件读写。
 
 - system_server 侧 `isVisibleRecentTask` 同样只读进程内快照；快照刷新在独立后台线程最佳努力执行。刷新失败或 ROM 反射失败时一律回退原方法 `chain.proceed()`（默认显示任务）。

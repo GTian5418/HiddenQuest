@@ -3,10 +3,10 @@
     xmlns:tools="http://schemas.android.com/tools">
 
     <permission
-        android:name="com.top.hiderecent.permission.PREFS"
+        android:name="top.gtian.hiderecent.permission.PREFS"
         android:protectionLevel="signature" />
 
-    <uses-permission android:name="com.top.hiderecent.permission.PREFS" />
+    <uses-permission android:name="top.gtian.hiderecent.permission.PREFS" />
 
     <uses-permission
         android:name="android.permission.QUERY_ALL_PACKAGES"
@@ -29,7 +29,7 @@
 
         <provider
             android:name=".PrefsProvider"
-            android:authorities="com.top.hiderecent.prefs"
+            android:authorities="top.gtian.hiderecent.prefs"
             android:exported="true" />
     </application>
 </manifest>

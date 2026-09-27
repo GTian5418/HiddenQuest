@@ -43,7 +43,7 @@
         <item
             android:id="@+id/show_system_app"
             android:checkable="true"
-            android:checked="true"
+            android:checked="false"
             android:title="@string/show_system_app"
             app:showAsAction="never" />
 

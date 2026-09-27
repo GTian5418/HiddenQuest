@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import android.content.BroadcastReceiver
 import android.content.Context

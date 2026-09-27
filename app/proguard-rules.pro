@@ -5,4 +5,4 @@
     public <init>();
 }
 # 模块入口类与 hook 类保持类名
--keep class com.top.hiderecent.** { *; }
+-keep class top.gtian.hiderecent.** { *; }

@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import android.util.Log
 import io.github.libxposed.api.XposedInterface

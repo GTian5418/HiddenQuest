@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import android.content.Context
 import android.content.Intent
@@ -18,7 +18,7 @@ class Main : XposedModule() {
 
     companion object {
         const val TAG = "HideRecentTiles"
-        const val MODULE_PKG = "com.top.hiderecent"
+        const val MODULE_PKG = "top.gtian.hiderecent"
         const val PREFS_NAME = "hide_recent"
         const val KEY_HIDE = "hide_list"
 
@@ -26,14 +26,14 @@ class Main : XposedModule() {
          * 配置变更广播：UI 写盘后发出，launcher 进程里动态注册的 receiver 收到即刷新缓存。
          * 这是唯一不依赖模块进程存活的通知通道——模块进程被最近任务划掉后依然生效。
          */
-        const val ACTION_PREFS_CHANGED = "com.top.hiderecent.PREFS_CHANGED"
+        const val ACTION_PREFS_CHANGED = "top.gtian.hiderecent.PREFS_CHANGED"
         const val EXTRA_HIDE = "hide_list"
 
         /**
          * signature 级权限：仅同签名应用（即模块自身）可发送配置变更广播，
          * 防止第三方应用伪造广播篡改隐藏名单。
          */
-        const val PREFS_PERMISSION = "com.top.hiderecent.permission.PREFS"
+        const val PREFS_PERMISSION = "top.gtian.hiderecent.permission.PREFS"
 
         /** 缓存有效期：期内直接返回缓存，不再做任何 IPC 读取（hook 可能每秒被调上百次） */
         private const val CACHE_TTL_MS = 1500L

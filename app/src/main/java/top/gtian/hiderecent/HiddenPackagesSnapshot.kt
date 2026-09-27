@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import java.util.LinkedHashSet
 import java.util.concurrent.atomic.AtomicReference

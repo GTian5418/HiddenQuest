@@ -1,4 +1,4 @@
-package com.top.hiderecent
+package top.gtian.hiderecent
 
 import android.content.ContentProvider
 import android.content.ContentValues
@@ -12,12 +12,12 @@ import android.net.Uri
  * 暴露模块配置给模块自身读取。
  * Hook 进程不再依赖 Provider 同步，避免在高频路径出现跨进程读导致的阻塞风险。
  *
- * query content://com.top.hiderecent.prefs/hide → 返回单行单列 cursor，值为逗号分隔的包名
+ * query content://top.gtian.hiderecent.prefs/hide → 返回单行单列 cursor，值为逗号分隔的包名
  */
 class PrefsProvider : ContentProvider() {
 
     companion object {
-        const val AUTHORITY = "com.top.hiderecent.prefs"
+        const val AUTHORITY = "top.gtian.hiderecent.prefs"
         const val PATH_HIDE = "hide"
         val URI: Uri = Uri.parse("content://$AUTHORITY/$PATH_HIDE")
     }
@@ -33,7 +33,7 @@ class PrefsProvider : ContentProvider() {
         return cursor
     }
 
-    override fun getType(uri: Uri): String? = "vnd.android.cursor.item/vnd.com.top.hiderecent.prefs"
+    override fun getType(uri: Uri): String? = "vnd.android.cursor.item/vnd.top.gtian.hiderecent.prefs"
     override fun onCreate(): Boolean = true
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<String>?): Int = 0

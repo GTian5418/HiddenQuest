@@ -1,4 +1,4 @@
-package com.top.hiderecent.ui
+package top.gtian.hiderecent.ui
 
 import android.content.ActivityNotFoundException
 import android.content.Intent
@@ -20,8 +20,8 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.top.hiderecent.PrefsBridge
-import com.top.hiderecent.R
+import top.gtian.hiderecent.PrefsBridge
+import top.gtian.hiderecent.R
 import java.util.concurrent.CountDownLatch
 
 /**
@@ -58,7 +58,7 @@ class MainActivity : AppCompatActivity() {
 
     // 排序/筛选状态
     private var orderByName = true
-    private var showSystem = true
+    private var showSystem = false
     private var showUser = true
     private var query = ""
 
@@ -298,6 +298,8 @@ class MainActivity : AppCompatActivity() {
         } else {
             list.sortedByDescending { it.installTime }
         }
+        // 已隐藏的排最上面（稳定排序，不破坏上面的字母/时间次序）
+        list = list.sortedByDescending { it.checked }
         adapter.submit(list)
         updateStatusText()
     }
