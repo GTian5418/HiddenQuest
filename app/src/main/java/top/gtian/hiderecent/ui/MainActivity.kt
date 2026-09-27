@@ -41,7 +41,7 @@ class MainActivity : AppCompatActivity() {
         const val KEY_HIDE = "hide_list"
 
         /** 「关于」跳转的项目仓库地址 */
-        const val REPO_URL = "https://github.com/GTian5418/HiddenQuest"
+        const val REPO_URL = "https://github.com/GTian5418/HideRecent"
 
         /** 轻进程/跨实例缓存：二次打开直接用，无需重新枚举包 */
         private data class CachedApp(val pkg: String, val label: String, val isSystem: Boolean, val installTime: Long)
