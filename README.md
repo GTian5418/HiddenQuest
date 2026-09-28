@@ -1,158 +1,66 @@
-# 最近任务隐藏（LSPosed Modern API 102 模块）
+# 最近任务隐藏 / HideRecent
 
-参考：
-- hideRecent / RocGwei/hideTask（system 侧 `RecentTasks.isVisibleRecentTask` 隐藏任务）
-- suqi8/OShin（ColorOS 桌面侧 hook 结构）
+LSPosed 模块（Modern API 102），自定义最近任务界面中哪些应用显示/隐藏。  
+ColorOS 桌面侧 + AOSP system\_server 侧双 hook。
 
-功能：自定义最近任务界面中哪些应用显示/隐藏。
+-   仓库：[https://github.com/GTian5418/HideRecent](https://github.com/GTian5418/HideRecent)
+-   包名：`top.gtian.hiderecent`
+-   minSdk 29 / targetSdk 34 / compileSdk 35
+-   AGP 8.7.2 + Kotlin 2.0.21 + JDK 17
+
+参考：hideRecent / RocGwei/hideTask、suqi8/OShin。
 
 ## 结构
+
 ```
-app/
-├─ src/main/java/top/gtian/hiderecent/
-│  ├─ Main.kt                # 模块入口（XposedModule），分发 system / launcher 两条 hook；UI 配置读取与缓存
-│  ├─ SystemRecentHook.kt    # system_server：hook RecentTasks.isVisibleRecentTask
-│  ├─ LauncherRecentHook.kt  # 桌面进程：hook OplusRecentTasksFilter.filterTask（ColorOS 真正生效的过滤点）
-│  ├─ PrefsProvider.kt       # ContentProvider（仅模块进程内部）
-│  └─ ui/                    # 模块自身的界面（应用列表 / 勾选 / 竖点菜单）
-├─ src/main/resources/META-INF/xposed/
-│  ├─ java_init.list          # 入口类全名
-│  ├─ module.prop            # minApiVersion=102
-│  └─ scope.list             # 注入目标包
+app/src/main/java/top/gtian/hiderecent/
+├─ Main.kt                  # 模块入口，分发 system / launcher 两条 hook
+├─ SystemRecentHook.kt      # system_server：hook RecentTasks.isVisibleRecentTask
+├─ LauncherRecentHook.kt    # 桌面：hook OplusRecentTasksFilter.filterTask（ColorOS 真正生效点）
+├─ PrefsBridge.kt           # 多通道读取隐藏名单（ContentProvider / remote prefs / 缓存）
+├─ HiddenPackagesSnapshot.kt# 进程内名单快照（热路径只读内存）
+├─ HookDecision.kt          # hook 判定逻辑
+├─ PrefsProvider.kt         # ContentProvider（仅模块进程内部）
+└─ ui/                      # 模块界面（应用列表 / 勾选 / 竖点菜单）
+app/src/main/resources/META-INF/xposed/
+├─ java_init.list           # 入口类全名
+├─ module.prop              # minApiVersion=102
+└─ scope.list               # 注入目标包（android + system）
+
 ```
 
 ## 编译
-Android Studio 打开（需 JDK 17+）。AGP 8.7.2 / Kotlin 2.0.21，无其他依赖。
 
-仓库**不带 gradle wrapper**，直接用本机 Gradle 构建（Windows / PowerShell）：
+需要 **JDK 17 + Android SDK + Gradle 8.9**。仓库不带 gradlew，用本机 Gradle：
 
 ```powershell
 $env:JAVA_HOME = "D:\DevTools\Java\jdk-17"
-D:\DevTools\Gradle\gradle-8.9\bin\gradle.bat assembleRelease
+gradle assembleRelease
+
 ```
 
-产出 `app/build/outputs/apk/release/app-release.apk`。
+产物 `app/build/outputs/apk/release/app-release.apk`。
 
-## GitHub Actions CI（Debug）
+> Gradle 在 minSdk 29 下只输出 v3 签名。要 v1+v2+v3 全签名，用 zipalign + apksigner 一步签名（见 `BUILD.md` 第 4 章）。
 
-仓库已提供 `Android CI` workflow（`.github/workflows/android.yml`），会在以下场景自动运行：
-
-- push 到 `main`
-- pull request
-- 手动触发（`workflow_dispatch`）
-
-CI 使用 Ubuntu runner，并固定：
-
-- JDK 17
-- Android SDK Platform 35
-- Android Build Tools 35.0.0
-- Gradle 8.9（通过 `gradle/actions/setup-gradle`，不依赖本地路径）
-
-执行命令：
-
-```bash
-gradle :app:testDebugUnitTest
-gradle :app:assembleDebug -x testDebugUnitTest
-```
-
-其中 `:app:testDebugUnitTest` 单独执行，`assembleDebug` 阶段跳过重复单测任务，只构建 Debug APK。
-
-产物会作为 artifact 上传，路径覆盖：
-
-```text
-app/build/outputs/apk/debug/*.apk
-```
-
-下载方式：进入对应 workflow run 页面，在 `Artifacts` 区域下载 `app-debug-apk`。
-
-> ⚠️ CI 只能验证“能否编译 + JVM 单元测试”；不能替代 LSPosed 注入、`system_server` hook、ColorOS 最近任务等真机行为验证。
+完整环境搭建、签名、CI/CD 详见 **[BUILD.md](BUILD.md)**。
 
 ## 安装与启用
-1. 安装 APK。
-2. LSPosed 管理器 → 启用模块。
-3. 作用域勾选：`系统框架 (system)` + 你的桌面 `com.oplus.quickstep`（或 `com.android.launcher`）。
-4. 重启设备。
+
+1.  安装 APK。
+2.  LSPosed 管理器 → 启用模块。
+3.  作用域勾选：`系统框架 (system)` + 你的桌面 `com.oplus.quickstep`（或 `com.android.launcher`）。
+4.  重启设备。
 
 ## 使用
-- 模块 UI：勾选应用即时生效并写入模块 SharedPreferences，无需重启。
-- 竖点菜单里还有「隐藏自身」：勾上以后，「最近任务隐藏」自己也不会出现在最近任务里；
-  该勾选态与列表里「最近任务隐藏」自身的条目是同一份状态，两边双向同步。
-- 写完之后模块会广播一次完整名单给桌面进程，所以**即使模块进程随后被划掉，隐藏依然生效**（见下节）。
 
-## 为什么杀掉模块进程后隐藏仍然生效
-
-这是本模块最容易踩的坑，值得单独说明。
-
-**问题**：隐藏名单存在模块自己的 `SharedPreferences` 里，而桌面进程（`com.oplus.quickstep`）
-是另一个 UID。早期实现只靠「每次过滤时查一次 ContentProvider」这一条路读名单——
-而那个 provider 就跑在模块自己的进程里。模块进程一旦被最近任务划掉（ColorOS 上往往等于
-force-stop），provider 查不到，hook 侧就把「读不到」错当成了「名单是空的」，
-于是被隐藏的应用全部重新冒出来。
-
-**现在的做法：hook 热路径只读内存快照 + 非热路径最佳努力刷新。**
-
-读取通道按优先级依次尝试（`Main.readHiddenPackages()`，仅用于非高频刷新）：
-
-| 级别 | 通道 | 依赖模块进程？ | 说明 |
-|---|---|---|---|
-| 1 | ContentProvider（`top.gtian.hiderecent.prefs`） | 是 | 仅模块内部；hook 进程不再依赖 |
-| 2 | libxposed remote preferences | 否 | 由 LSPosed 框架服务提供，不依赖模块进程 |
-| 3 | 直读模块 data 目录的 `shared_prefs/*.xml` | 否 | 跨 UID 通常无权限，仅作兜底 |
-| 4 | 本进程落盘缓存（`files/hidden_cache.txt`） | 否 | 上面全部无应答时使用（典型场景：模块进程被划掉） |
-
-关键规则两条：
-
-- **失败绝不覆盖缓存。** 只有某个通道*成功应答*才会被采信（包括合法的空名单——用户真的全部取消勾选）。
-  全部失败时沿用上一次的名单，而不是退化成空集。
-- **写入即推送。** 模块 UI 每次改动都会广播 `top.gtian.hiderecent.PREFS_CHANGED`，
-  extra `hide_list` 带完整名单。桌面进程里的动态接收器收到后原子替换内存快照，`filterTask` 热路径不再做同步 IPC/文件读写。
-
-- system_server 侧 `isVisibleRecentTask` 同样只读进程内快照；快照刷新在独立后台线程最佳努力执行。刷新失败或 ROM 反射失败时一律回退原方法 `chain.proceed()`（默认显示任务）。
-
-### 想更稳的话（可选）
-- 在系统设置里给「最近任务隐藏」开「允许自启动」、关掉电池优化、在最近任务里上锁。
-- 这些只是让 provider 通道少断，上面四级 + 推送已经能兜住。
-
-## Hook 点说明
-
-### 桌面侧（ColorOS 上真正生效的）
-- 目标：`com.oplus.quickstep.data.OplusRecentTasksFilter.filterTask(GroupTask): boolean`
-- 语义：**返回 `true` = 隐藏，`false` = 显示**
-- 调用方：`com.android.quickstep.OplusRecentTasksListImpl.loadTasksInBackground()`
-  → `if (getFilter().filterTask(map)) { map = null; }`
-- 包名从 `GroupTask.task1` 字段 + `Task.getPackageName()` 取。
-- 注意：AOSP 那条 `RecentTasks.isVisibleRecentTask` 在 ColorOS 上其实是死代码。
-
-### system 侧（AOSP / 其他 ROM）
-- `com.android.server.wm.RecentTasks.isVisibleRecentTask(Task)`（单参，AOSP）
-- `com.android.server.wm.RecentTasks.isVisibleRecentTask(Task, boolean)`（双参，Vivo/OPPO 部分 ROM）
-  → 返回 `false` 即从最近任务隐藏该任务。
-- 兜底取包名：`Task.getBaseIntent()` / 字段 `mBaseIntent`。
-
-### 换 ROM 时怎么找目标类
-1. 打开最近任务界面，用 adb 看当前前台是谁：
-   ```bat
-   adb shell dumpsys window | findstr /i "mCurrentFocus"
-   adb shell dumpsys activity top | findstr /i "ACTIVITY"
-   adb shell dumpsys activity recents
-   ```
-   输出形如 `mCurrentFocus=Window{... u0 com.oplus.quickstep/com.oplus.quickstep.recents.RecentsActivity}`。
-2. 用 jadx 反编译该 ROM 的 `services.jar` / 桌面 APK，搜 `isVisibleRecentTask`、
-   `filterTask`、`loadTasksInBackground` 等，找到真正的过滤点。
-3. 替换 `SystemRecentHook` / `LauncherRecentHook` 里的目标方法即可；
-   日志 tag 为 `HideRecentTiles`，`LauncherRecentHook` 前 20 次调用会打印 `filterTask#n pkg=...`，
-   可用来确认目标方法确实被调到。
+-   模块 UI 里勾选应用即时生效，无需重启。
+-   竖点菜单「隐藏自身」：勾上后本模块也不出现在最近任务里。
+-   **杀掉模块进程后隐藏仍生效**：名单在桌面进程里有内存快照，模块 UI 每次改动会广播完整名单给桌面进程原子替换。即使模块进程被划掉（ColorOS 上等于 force-stop），`filterTask` 热路径仍读快照，不会退化成空集。
+-   想更稳：给本模块开「允许自启动」、关电池优化、在最近任务里上锁。
 
 ## 注意
-- 现代 API 不需要 `assets/xposed_init`，只写 `java_init.list`。
-- 混淆/开 R8：保留 `app/proguard-rules.pro` 中 XposedModule 条目，勿删。
-- 排查隐藏不生效时，先看 logcat：
-  ```bat
-  adb logcat -s HideRecentTiles
-  ```
-  正常会看到名单来源与条数（`hidden(n)=...`、`prefs pushed -> hidden(n)`）；
-  若一直打印「全部通道失败」，说明模块进程被冻结且推送也没收到，
-  按上面「想更稳的话」处理。
-- 部分 ROM 会缓存任务列表，改完名单后如果旧的卡片还在，
-  杀一次 launcher 进程重试：`adb shell am force-stop com.oplus.quickstep`。
-- 如果出现开机循环崩溃/黑屏（ROM hook 点变化），先在 LSPosed 里禁用本模块或临时取消 system/launcher 作用域，再重启后更新版本。
+
+-   排查隐藏不生效：`adb logcat -s HideRecentTiles`，正常会看到 `hidden(n)=...`。
+-   部分 ROM 缓存任务列表，改完名单若旧卡片还在：`adb shell am force-stop com.oplus.quickstep`。
+-   开机循环崩溃：先在 LSPosed 禁用本模块或取消作用域，重启后更新版本。
